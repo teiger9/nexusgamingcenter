@@ -1,0 +1,817 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function getUserRole() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/players/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/players/$(request.auth.uid)).data.get('role', '')
+        : (isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+           ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '')
+           : '');
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && (
+        request.auth.uid == 'c3Vip2TwMvZXhub5gjjVpjcsStI2' ||
+        ('super_admin' in request.auth.token && request.auth.token.super_admin == true) ||
+        ('email' in request.auth.token && request.auth.token.email is string && request.auth.token.email.lower() in ['bonoisacil@gmail.com', 'babystore153@gmail.com']) ||
+        (exists(/databases/$(database)/documents/players/$(request.auth.uid)) &&
+         (get(/databases/$(database)/documents/players/$(request.auth.uid)).data.get('role', '') in ['SUPER_ADMIN', 'superadmin', 'super_admin', 'SUPERADMIN'] ||
+          ('email' in get(/databases/$(database)/documents/players/$(request.auth.uid)).data &&
+           get(/databases/$(database)/documents/players/$(request.auth.uid)).data.email is string &&
+           get(/databases/$(database)/documents/players/$(request.auth.uid)).data.email.lower() in ['bonoisacil@gmail.com', 'babystore153@gmail.com']))) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['SUPER_ADMIN', 'superadmin', 'super_admin', 'SUPERADMIN'])
+      );
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        isSuperAdmin() ||
+        ('admin' in request.auth.token && request.auth.token.admin == true) ||
+        ('email' in request.auth.token && request.auth.token.email is string && request.auth.token.email.lower() in ['bonoisacil@gmail.com', 'babystore153@gmail.com']) ||
+        (exists(/databases/$(database)/documents/players/$(request.auth.uid)) &&
+         (get(/databases/$(database)/documents/players/$(request.auth.uid)).data.get('role', '') in ['ADMIN', 'admin', 'ADMINISTRATOR', 'administrator'] ||
+          ('email' in get(/databases/$(database)/documents/players/$(request.auth.uid)).data &&
+           get(/databases/$(database)/documents/players/$(request.auth.uid)).data.email is string &&
+           get(/databases/$(database)/documents/players/$(request.auth.uid)).data.email.lower() in ['bonoisacil@gmail.com', 'babystore153@gmail.com']))) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['ADMIN', 'admin', 'ADMINISTRATOR', 'administrator'])
+      );
+    }
+
+    function isStaff() {
+      return isAuthenticated() && (
+        isAdmin() ||
+        ('staff' in request.auth.token && request.auth.token.staff == true) ||
+        ('email' in request.auth.token && request.auth.token.email is string && request.auth.token.email.lower() in ['bonoisacil@gmail.com', 'babystore153@gmail.com']) ||
+        (exists(/databases/$(database)/documents/players/$(request.auth.uid)) &&
+         (get(/databases/$(database)/documents/players/$(request.auth.uid)).data.get('role', '') in ['STAFF', 'staff', 'STAFF_MEMBER', 'staff_member', 'MODERATOR', 'moderator', 'REFEREE', 'referee'] ||
+          ('email' in get(/databases/$(database)/documents/players/$(request.auth.uid)).data &&
+           get(/databases/$(database)/documents/players/$(request.auth.uid)).data.email is string &&
+           get(/databases/$(database)/documents/players/$(request.auth.uid)).data.email.lower() in ['bonoisacil@gmail.com', 'babystore153@gmail.com']))) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['STAFF', 'staff', 'STAFF_MEMBER', 'staff_member', 'MODERATOR', 'moderator', 'REFEREE', 'referee'])
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-\\.]+$');
+    }
+
+    // Authoritative Nexus Competitive Game Validator
+    // Allowed: chess, fc, valorant, cs2, lol (Categories: CHESS, FC, VALORANT, CS2, LEAGUE_OF_LEGENDS)
+    // Strictly rejected: tekken, rocket league, mortal kombat, fortnite, call of duty, fc26, fc27
+    function isValidRankingRecord(data) {
+      return (
+        (!('gameCategory' in data) || data.gameCategory in ['CHESS', 'FC', 'VALORANT', 'CS2', 'LEAGUE_OF_LEGENDS']) &&
+        (!('gameId' in data) || data.gameId in ['chess', 'fc', 'valorant', 'cs2', 'lol']) &&
+        (!('gameId' in data) || !(data.gameId in [
+          'fc26', 'fc27', 'fc-26', 'fc-27',
+          'ea-fc', 'ea_fc', 'ea fc', 'fc_ea', 'fc-ea', 'fc ea', 'fcea', 'eafc',
+          'tekken', 'tekken8', 'tekken-8',
+          'rocket_league', 'rocketleague', 'rocket-league',
+          'mortal_kombat', 'mortalkombat', 'mortal-kombat', 'mk1',
+          'fortnite',
+          'call_of_duty', 'callofduty', 'call-of-duty', 'cod'
+        ])) &&
+        (!('gameCategory' in data) || !(data.gameCategory in [
+          'FC26', 'FC27', 'FC_EA', 'EA_FC', 'EA_SPORTS_FC', 'TEKKEN', 'ROCKET_LEAGUE', 'MORTAL_KOMBAT', 'FORTNITE', 'CALL_OF_DUTY'
+        ])) &&
+        (!('game' in data) || !(data.game in [
+          'Tekken', 'tekken', 'Tekken 8', 'tekken 8',
+          'Rocket League', 'rocket league',
+          'Mortal Kombat', 'mortal kombat',
+          'Fortnite', 'fortnite',
+          'Call of Duty', 'call of duty',
+          'FC26', 'fc26', 'FC 26', 'fc 26',
+          'FC27', 'fc27', 'FC 27', 'fc 27',
+          'EA FC', 'ea fc', 'FC EA', 'fc ea', 'EA Sports FC', 'ea sports fc'
+        ])) &&
+        (!('gameName' in data) || !(data.gameName in [
+          'Tekken', 'tekken', 'Tekken 8', 'tekken 8',
+          'Rocket League', 'rocket league',
+          'Mortal Kombat', 'mortal kombat',
+          'Fortnite', 'fortnite',
+          'Call of Duty', 'call of duty',
+          'FC 26', 'FC 27', 'FC26', 'FC27',
+          'EA FC', 'ea fc', 'FC EA', 'fc ea', 'EA Sports FC', 'ea sports fc'
+        ]))
+      );
+    }
+
+    // One-Time Initial Super Admin Bootstrap Authorization Check
+    function isInitialBootstrapAuthorized(playerId) {
+      return isAuthenticated() &&
+        request.auth.uid == playerId &&
+        playerId == 'c3Vip2TwMvZXhub5gjjVpjcsStI2' &&
+        request.resource.data.role == 'SUPER_ADMIN' &&
+        (!exists(/databases/$(database)/documents/systemConfig/bootstrap) ||
+         get(/databases/$(database)/documents/systemConfig/bootstrap).data.get('bootstrapCompleted', false) != true);
+    }
+
+    // System Configuration & Bootstrap Locks
+    match /systemConfig/{configId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        configId == 'bootstrap' &&
+        request.auth.uid == 'c3Vip2TwMvZXhub5gjjVpjcsStI2' &&
+        !exists(/databases/$(database)/documents/systemConfig/bootstrap);
+      allow update: if false; // Once sealed, cannot be changed
+      allow delete: if false;
+    }
+
+    // Role Invitations Collection (Cryptographic role invitations with token & expiration)
+    match /roleInvitations/{invitationId} {
+      allow read: if isAuthenticated() && (
+        isSuperAdmin() ||
+        ('email' in request.auth.token && resource.data.recipientEmail == request.auth.token.email) ||
+        resource.data.recipientUid == request.auth.uid
+      );
+      allow create: if isAuthenticated() && isSuperAdmin() &&
+        request.resource.data.invitedRole in ['ADMIN', 'STAFF', 'admin', 'staff'] &&
+        request.resource.data.status == 'PENDING' &&
+        request.resource.data.recipientEmail is string &&
+        request.resource.data.invitedByUid == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        // Super admin can revoke or update invitation
+        isSuperAdmin() ||
+        // Intended recipient can accept or decline their own invitation
+        (
+          ('email' in request.auth.token && resource.data.recipientEmail == request.auth.token.email) &&
+          resource.data.status == 'PENDING' &&
+          request.resource.data.status in ['ACCEPTED', 'DECLINED'] &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'acceptedAt', 'acceptedByUid', 'declinedAt', 'declinedByUid', 'updatedAt'
+          ])
+        )
+      );
+      allow delete: if false; // Role invitations are audit records and immutable from deletion
+    }
+
+    // Role Governance Audit Logs (Immutable, append-only security logs)
+    match /roleAuditLogs/{auditId} {
+      allow read: if isAuthenticated() && (isSuperAdmin() || isAdmin());
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        isAdmin() ||
+        ('email' in request.auth.token && request.auth.token.email == request.resource.data.targetEmail) ||
+        request.auth.uid == request.resource.data.performedByUid ||
+        (request.resource.data.action == 'INITIAL_SUPER_ADMIN_BOOTSTRAP' && request.auth.uid == 'c3Vip2TwMvZXhub5gjjVpjcsStI2')
+      );
+      allow update, delete: if false; // Append-only audit logs are strictly immutable!
+    }
+
+    // Players collection
+    match /players/{playerId} {
+      allow read: if true; // Public read for leaderboards, player dossiers, opponent selection
+      allow create: if isAuthenticated() && request.auth.uid == playerId && (
+        // Normal users CANNOT create admin or staff or super admin profiles
+        (request.resource.data.role in ['player', 'PLAYER'] || isSuperAdmin()) &&
+        // Initial coins cannot be spoofed to give oneself free balance on registration
+        (!('nexusCoins' in request.resource.data) || request.resource.data.nexusCoins == 0) &&
+        (!('totalCoinsEarned' in request.resource.data) || request.resource.data.totalCoinsEarned == 0) &&
+        (!('totalCoinsRedeemed' in request.resource.data) || request.resource.data.totalCoinsRedeemed == 0) &&
+        request.resource.data.email is string &&
+        request.resource.data.fullName is string &&
+        request.resource.data.gamerTag is string
+      );
+      allow update: if isAuthenticated() && (
+        // Protection 1: Non-teiger9 CANNOT modify teiger9's credentials, role, email, or identity
+        (
+          playerId != 'c3Vip2TwMvZXhub5gjjVpjcsStI2' || 
+          request.auth.uid == 'c3Vip2TwMvZXhub5gjjVpjcsStI2' ||
+          isSuperAdmin() ||
+          (
+            isStaff() && 
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'role', 'uid', 'email', 'fullName', 'gamerTag'
+            ])
+          )
+        ) &&
+        // Protection 2: Super Admin role assignment cannot be granted to arbitrary players
+        (
+          request.resource.data.get('role', '') != 'SUPER_ADMIN' || 
+          resource.data.get('role', '') == 'SUPER_ADMIN' || 
+          playerId == 'c3Vip2TwMvZXhub5gjjVpjcsStI2' ||
+          isSuperAdmin()
+        ) &&
+        // Protection 3: Role modifications are strictly controlled
+        (
+          // Role is completely unchanged
+          request.resource.data.get('role', '') == resource.data.get('role', '') ||
+          // Super admin is changing target user's role to ADMIN, STAFF, PLAYER, or SUPER_ADMIN
+          (isSuperAdmin() && request.resource.data.role in ['ADMIN', 'STAFF', 'player', 'PLAYER', 'SUPER_ADMIN']) ||
+          // Authorized one-time initial founding Super Admin bootstrap for teiger9
+          isInitialBootstrapAuthorized(playerId) ||
+          // Recipient accepting an official verified cryptographic role invitation
+          (
+            request.auth.uid == playerId &&
+            resource.data.role in ['player', 'PLAYER'] &&
+            request.resource.data.role in ['ADMIN', 'STAFF'] &&
+            request.resource.data.roleInvitationId is string &&
+            exists(/databases/$(database)/documents/roleInvitations/$(request.resource.data.roleInvitationId)) &&
+            get(/databases/$(database)/documents/roleInvitations/$(request.resource.data.roleInvitationId)).data.status == 'ACCEPTED' &&
+            ('email' in request.auth.token && get(/databases/$(database)/documents/roleInvitations/$(request.resource.data.roleInvitationId)).data.recipientEmail == request.auth.token.email)
+          )
+        ) &&
+        // UID is strictly immutable
+        (request.resource.data.get('uid', playerId) == resource.data.get('uid', playerId)) &&
+        // Wallet coins non-negative
+        (!('nexusCoins' in request.resource.data) || request.resource.data.nexusCoins >= 0) && (
+          isAdmin() ||
+          isStaff() ||
+          (
+            request.auth.uid == playerId && (
+              // Direct player writes CANNOT arbitrarily increase nexusCoins or totalCoinsEarned
+              (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['nexusCoins', 'totalCoinsEarned']) ||
+               (request.resource.data.get('nexusCoins', 0) <= resource.data.get('nexusCoins', 0) &&
+                request.resource.data.get('totalCoinsEarned', 0) == resource.data.get('totalCoinsEarned', 0)))
+            )
+          ) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'overallRating', 'totalGames', 'totalWins', 'totalLosses', 'totalDraws', 
+            'currentWinStreak', 'bestWinStreak', 'totalCoinsRedeemed', 'updatedAt', 'lastLoginAt',
+            'active5v5LobbyId', 'lastLobbyCreatedAt'
+          ])
+        )
+      );
+      allow delete: if isSuperAdmin() && playerId != 'c3Vip2TwMvZXhub5gjjVpjcsStI2' && playerId != request.auth.uid;
+    }
+
+    // Atomic Username Registry (Prevents duplicate usernames across all capitalization)
+    match /usernames/{tag} {
+      allow read: if true;
+      allow create: if isAuthenticated() && 
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.gamerTag is string &&
+        tag.size() >= 3 && tag.size() <= 20;
+      allow update: if false; // Immutable once claimed
+      allow delete: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin() || isSuperAdmin());
+    }
+
+    // Legacy users collection fallback
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Games Catalog
+    match /games/{gameId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Player Game Ratings (All-Time per game)
+    match /playerGameRatings/{ratingId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated() && (
+        isAdmin() ||
+        isStaff() ||
+        request.auth.uid == request.resource.data.playerId
+      ) && isValidRankingRecord(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // Matches (1v1 & 5v5 Competitive Arenas)
+    match /matches/{matchId} {
+      allow read: if true; // Public read for live arena display and leaderboard history
+      allow create: if isAuthenticated() && (
+        // Self-opponent prevention rule: playerAId must not equal playerBId
+        (!('playerAId' in request.resource.data) || !('playerBId' in request.resource.data) || 
+         request.resource.data.playerAId == '' || request.resource.data.playerBId == '' || 
+         request.resource.data.playerAId != request.resource.data.playerBId)
+      ) && (
+        // Creator must be authenticated user or admin/staff
+        request.resource.data.createdBy == request.auth.uid ||
+        request.resource.data.playerAId == request.auth.uid ||
+        request.resource.data.lobbyOwnerId == request.auth.uid ||
+        request.resource.data.captainAId == request.auth.uid ||
+        isStaff()
+      ) && (
+        // Initial status cannot be CONFIRMED or COMPLETED by normal players on create
+        (request.resource.data.status in ['WAITING_FOR_OPPONENT', 'PENDING', 'PENDING_APPROVAL', 'TEAM_ROSTERS_FILLING', 'WAITING_FOR_ADMIN']) ||
+        isStaff()
+      ) && (
+        // Official hours and reward flags cannot be set to true by normal players on create
+        (
+          (!('officialHours' in request.resource.data) || request.resource.data.officialHours == false) &&
+          (!('rewardProcessed' in request.resource.data) || request.resource.data.rewardProcessed == false) &&
+          (!('ncRewardProcessed' in request.resource.data) || request.resource.data.ncRewardProcessed == false)
+        ) ||
+        isStaff()
+      );
+      allow update: if isAuthenticated() && (
+        // Restrict officialHours, rewardProcessed, ncRewardProcessed, and status=CONFIRMED to authorized staff/admin
+        (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'officialHours', 'rewardProcessed', 'ncRewardProcessed', 'confirmedBy', 'confirmedByName', 'confirmedAt', 'teamARewardPerPlayer', 'teamBRewardPerPlayer'
+          ]) &&
+          (request.resource.data.status != 'CONFIRMED' || resource.data.status == 'CONFIRMED')
+        ) ||
+        isStaff()
+      ) && (
+        // When transitioning to CANCELLED, only the canonical Lobby Owner or Admin/Staff is permitted
+        request.resource.data.status != 'CANCELLED' ||
+        resource.data.status == 'CANCELLED' ||
+        isAdmin() ||
+        isStaff() ||
+        (resource.data.matchType == '5v5' && (
+          request.auth.uid == resource.data.lobbyOwnerId ||
+          request.auth.uid == resource.data.createdBy
+        )) ||
+        (resource.data.matchType != '5v5' && (
+          request.auth.uid == resource.data.playerAId ||
+          request.auth.uid == resource.data.createdBy ||
+          request.auth.uid == resource.data.lobbyOwnerId
+        ))
+      ) && (
+        // Creator Takeover Protection: createdBy is immutable
+        (!('createdBy' in resource.data) || request.resource.data.createdBy == resource.data.createdBy || isAdmin() || isStaff())
+      ) && (
+        // Lobby Owner Takeover Protection: only current owner or admin can transfer ownership
+        (!('lobbyOwnerId' in resource.data) || request.resource.data.lobbyOwnerId == resource.data.lobbyOwnerId || resource.data.lobbyOwnerId == request.auth.uid || resource.data.createdBy == request.auth.uid || isAdmin() || isStaff())
+      ) && (
+        // Match Live/Confirmed Roster Lock: rosters cannot be mutated once match has started or finished
+        resource.data.status != 'LIVE' && resource.data.status != 'CONFIRMED' ||
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['teamAPlayerIds', 'teamBPlayerIds', 'teamAPlayers', 'teamBPlayers', 'captainAId', 'captainBId']) ||
+        isStaff()
+      );
+      allow delete: if isAdmin();
+
+      match /{subcollection=**} {
+        allow read: if true;
+        allow write: if isAuthenticated();
+      }
+    }
+
+    // Lobby Join Requests (Team B / Team A join requests)
+    match /lobbyJoinRequests/{reqId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Teams (5v5 Squads)
+    match /teams/{teamId} {
+      allow read: if true; // Public read for rosters, 5v5 leaderboards, dossiers
+      allow create: if isAdmin() || isStaff() || (isAuthenticated() && request.resource.data.captainId == request.auth.uid);
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        isStaff() ||
+        // Captain can update roster / details, but CANNOT alter competitive MMR or records
+        (resource.data.captainId == request.auth.uid && 
+         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['teamRating', 'matchesPlayed', 'wins', 'losses', 'draws', 'winRate'])))
+      );
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.captainId == request.auth.uid);
+    }
+
+    // Team Invitations
+    match /teamInvitations/{invitationId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        request.resource.data.inviterId == request.auth.uid ||
+        request.resource.data.senderId == request.auth.uid ||
+        request.resource.data.captainId == request.auth.uid
+      ) && (
+        // Universal self-invite and self-opponent prevention rule:
+        // Authenticated user cannot invite themselves or be recipient
+        (!('inviterId' in request.resource.data) || !('recipientId' in request.resource.data) || request.resource.data.inviterId != request.resource.data.recipientId) &&
+        (!('senderId' in request.resource.data) || !('recipientId' in request.resource.data) || request.resource.data.senderId != request.resource.data.recipientId) &&
+        (!('inviterId' in request.resource.data) || !('invitedPlayerId' in request.resource.data) || request.resource.data.inviterId != request.resource.data.invitedPlayerId) &&
+        (!('senderId' in request.resource.data) || !('invitedPlayerId' in request.resource.data) || request.resource.data.senderId != request.resource.data.invitedPlayerId)
+      ) && (
+        // For 5v5 lobby invitations, strictly enforce authoritative captain/owner permissions
+        !('lobbyId' in request.resource.data) ||
+        !exists(/databases/$(database)/documents/matches/$(request.resource.data.lobbyId)) ||
+        isAdmin() ||
+        // Lobby Owner / Creator can invite to Team A and Team B
+        request.auth.uid == get(/databases/$(database)/documents/matches/$(request.resource.data.lobbyId)).data.lobbyOwnerId ||
+        request.auth.uid == get(/databases/$(database)/documents/matches/$(request.resource.data.lobbyId)).data.createdBy ||
+        // Team A Captain can invite to Team A ONLY
+        (
+          request.resource.data.teamSide == 'teamA' &&
+          request.auth.uid == get(/databases/$(database)/documents/matches/$(request.resource.data.lobbyId)).data.captainAId
+        ) ||
+        // Team B Captain can invite to Team B ONLY
+        (
+          request.resource.data.teamSide == 'teamB' &&
+          request.auth.uid == get(/databases/$(database)/documents/matches/$(request.resource.data.lobbyId)).data.captainBId
+        )
+      );
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        // Recipient accepting or declining their own pending invitation:
+        (
+          (resource.data.recipientId == request.auth.uid || resource.data.invitedPlayerId == request.auth.uid) &&
+          resource.data.status == 'PENDING' &&
+          request.resource.data.status in ['ACCEPTED', 'DECLINED'] &&
+          // Immutability: recipient CANNOT tamper with target team, lobby, inviter, recipient, or expiration
+          request.resource.data.get('teamSide', '') == resource.data.get('teamSide', '') &&
+          request.resource.data.get('lobbyId', '') == resource.data.get('lobbyId', '') &&
+          request.resource.data.get('teamId', '') == resource.data.get('teamId', '') &&
+          request.resource.data.get('invitedPlayerId', '') == resource.data.get('invitedPlayerId', '') &&
+          request.resource.data.get('recipientId', '') == resource.data.get('recipientId', '') &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'acceptedAt', 'acceptedBy', 'declinedAt', 'declinedBy', 'respondedAt', 'updatedAt', 'expiredAt'
+          ])
+        ) ||
+        // Inviter or Captain cancelling or marking expired:
+        (
+          (resource.data.inviterId == request.auth.uid || resource.data.captainId == request.auth.uid || resource.data.senderId == request.auth.uid) &&
+          request.resource.data.status in ['CANCELLED', 'EXPIRED'] &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'cancelledAt', 'cancelledBy', 'expiredAt', 'updatedAt'
+          ])
+        )
+      );
+      allow delete: if isAdmin() || (
+        isAuthenticated() && (
+          resource.data.inviterId == request.auth.uid ||
+          resource.data.captainId == request.auth.uid ||
+          resource.data.senderId == request.auth.uid
+        )
+      );
+    }
+
+    // 5v5 Lobby Recruitment Announcements
+    match /lobbyRecruitments/{recruitmentId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // User Notifications
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.recipientId == request.auth.uid ||
+        resource.data.senderId == request.auth.uid ||
+        resource.data.inviterId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    // Rating Transactions (Ledger)
+    match /ratingTransactions/{txId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        isStaff() ||
+        request.auth.uid == request.resource.data.playerId ||
+        request.auth.uid == request.resource.data.playerUid
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    // Rating History collection
+    match /rating_history/{txId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        isStaff() ||
+        request.auth.uid == request.resource.data.playerId ||
+        request.auth.uid == request.resource.data.playerUid
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    // Seasons (Public read for competitive calendar, Staff/Admin management)
+    match /seasons/{seasonId} {
+      allow read: if true;
+      allow create: if isAdmin();
+      allow update: if isStaff();
+      allow delete: if isSuperAdmin() && resource.data.status != 'active' && resource.data.status != 'ACTIVE';
+    }
+
+    // Season Player Game Ratings (MMR snapshots)
+    match /seasonPlayerGameRatings/{ratingId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated() && (
+        isAdmin() ||
+        isStaff() ||
+        request.auth.uid == request.resource.data.playerId
+      ) && isValidRankingRecord(request.resource.data);
+      allow delete: if isSuperAdmin();
+    }
+
+    // Season Player Overall (Composite seasonal stats)
+    match /seasonPlayerOverall/{statId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated() && (
+        isAdmin() ||
+        isStaff() ||
+        request.auth.uid == request.resource.data.playerId
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    // Hall of Fame (Public showcase, Staff/Admin transition)
+    match /hallOfFame/{entryId} {
+      allow read: if true;
+      allow create: if isStaff() && isValidRankingRecord(request.resource.data);
+      allow update: if isAdmin() && isValidRankingRecord(request.resource.data);
+      allow delete: if isSuperAdmin();
+    }
+
+    // Hall of Fame Announcements (Public showcase, Staff/Admin transition)
+    match /hallOfFameAnnouncements/{announcementId} {
+      allow read: if true;
+      allow create: if isStaff() && isValidRankingRecord(request.resource.data);
+      allow update: if isAdmin() && isValidRankingRecord(request.resource.data);
+      allow delete: if isSuperAdmin();
+    }
+
+    // Audit Logs (Staff governance and user action audit ledger with anti-spoofing)
+    match /auditLogs/{logId} {
+      allow read: if isStaff();
+      // Authorized Staff, Admin, or authenticated users recording system/audit actions
+      allow create: if isAuthenticated();
+      // Strictly immutable: audit logs cannot be modified or deleted
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Match History (Permanent, immutable gaming center match ledger publicly accessible to visitors, players, staff & admins)
+    match /matchHistory/{matchId} {
+      // Public read: Anyone including visitors can view verified match history without authentication
+      allow read: if true;
+      // Staff/Admin/Super Admin: CREATE allowed only through authorized validation workflow
+      allow create: if (isStaff() || isAdmin() || isSuperAdmin()) &&
+        request.resource.data.status == 'VALIDATED' &&
+        request.resource.data.matchId is string &&
+        request.resource.data.game is string;
+      // Strictly immutable: UPDATE denied after validation, DELETE denied
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Gaming Posts (PCs, PS5s)
+    match /gamingPosts/{postId} {
+      allow read: if true;
+      allow create, delete: if isAdmin() || isStaff();
+      allow update: if isAdmin() || isStaff();
+    }
+
+    // Post Maintenance & Blocks
+    match /postBlocks/{blockId} {
+      allow read: if true;
+      allow write: if isAdmin() || isStaff();
+    }
+
+    // Reservation Business Settings
+    match /reservationSettings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Reservations (Booking System)
+    match /reservations/{reservationId} {
+      allow read: if true; // Public calendar view for occupied intervals & stations
+      allow create: if (
+        isAdmin() ||
+        isStaff() ||
+        (
+          isAuthenticated() &&
+          request.resource.data.userId == request.auth.uid &&
+          (request.resource.data.status == 'PENDING' || request.resource.data.status == 'PENDING_ADMIN_APPROVAL') &&
+          request.resource.data.phoneNumber is string &&
+          request.resource.data.totalPrice is number
+        ) ||
+        (
+          request.resource.data.isGuest == true &&
+          (request.resource.data.status == 'PENDING' || request.resource.data.status == 'PENDING_ADMIN_APPROVAL') &&
+          request.resource.data.phoneNumber is string &&
+          request.resource.data.totalPrice is number
+        )
+      );
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        isStaff() ||
+        (
+          resource.data.userId == request.auth.uid &&
+          request.resource.data.status == 'CANCELLED' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'cancelledAt', 'cancelledBy', 'cancellationReason', 'updatedAt'
+          ])
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Atomic Post Slot Locks (Double-Booking and Concurrency Overlap Prevention)
+    match /postSlotLocks/{lockId} {
+      allow read: if true; // Public view for calendar occupied slot checks
+      allow create: if (
+        isAdmin() ||
+        isStaff() ||
+        (isAuthenticated() && request.resource.data.userId == request.auth.uid) ||
+        (request.resource.data.get('isGuest', false) == true && request.resource.data.userId is string)
+      );
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        isStaff() ||
+        resource.data.userId == request.auth.uid
+      );
+      allow delete: if isAdmin() || isStaff() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+    }
+
+    // Tournaments (Public read for all visitors and players)
+    match /tournaments/{tournamentId} {
+      allow read: if true;
+      allow create: if isAdmin() || isStaff();
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        isStaff() ||
+        // Allow authenticated players or team captains to register/join/update roster in tournaments
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants', 'currentParticipantsCount', 'updatedAt'])
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 5v5 Tournament Team Registrations
+    match /tournamentTeamRegistrations/{registrationId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && (
+        isAdmin() || (
+          request.resource.data.captainId == request.auth.uid &&
+          (request.resource.data.status == 'DRAFT' || request.resource.data.status == 'WAITING_FOR_PLAYERS')
+        )
+      );
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        isStaff() ||
+        (
+          // Captains and teammates can update roster slots, invitations, and team state, but cannot self-escalate to CONFIRMED or APPROVED unless already CONFIRMED/APPROVED or admin
+          (
+            (request.resource.data.status == resource.data.status) ||
+            (request.resource.data.status != 'CONFIRMED' && request.resource.data.status != 'APPROVED')
+          )
+        )
+      );
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.captainId == request.auth.uid);
+    }
+
+    // Player Tournament Achievements
+    match /tournamentAchievements/{achievementId} {
+      allow read: if true;
+      allow write: if isAdmin() || isStaff();
+    }
+
+    // Tournament Activity & Audit Logs
+    match /tournamentActivityLogs/{logId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    // Tournament Qualification & Progression Events
+    match /tournamentEvents/{eventId} {
+      allow read: if true;
+      allow create, update: if isAdmin() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    // Nexus Coin Rewards Configuration (Game win rewards)
+    match /coinRewardsSettings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Nexus Coin Transactions Ledger (Immutable)
+    match /coinTransactions/{txId} {
+      allow get: if isAuthenticated() && (
+        resource == null ||
+        resource.data.playerUid == request.auth.uid ||
+        isAdmin() ||
+        isStaff()
+      );
+      allow list: if isAuthenticated() && (
+        resource.data.playerUid == request.auth.uid ||
+        isAdmin() ||
+        isStaff()
+      );
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        isStaff() ||
+        (request.resource.data.playerUid == request.auth.uid && request.resource.data.type == 'REDEMPTION' && request.resource.data.amount <= 0) ||
+        (
+          request.resource.data.type in [
+            'MATCH_WIN', 'MATCH_LOSS_REWARD', 'MATCH_LOSS', 'MATCH_DRAW_REWARD', 'MATCH_DRAW',
+            '5V5_REWARD', 'MATCH_PLAY', 'MANUAL_MATCH_RESULT', 'MATCH_REWARD',
+            'ADJUSTMENT_DEBIT', 'ADJUSTMENT_CREDIT', 'CORRECTION', 'ADMIN_ADJUSTMENT'
+          ] &&
+          (
+            isStaff() ||
+            (
+              exists(/databases/$(database)/documents/matches/$(request.resource.data.matchId)) &&
+              (
+                get(/databases/$(database)/documents/matches/$(request.resource.data.matchId)).data.status in ['CONFIRMED', 'COMPLETED', 'AWAITING_CONFIRMATION', 'LIVE']
+              )
+            )
+          )
+        )
+      );
+      // Strictly immutable: transactions can never be edited or deleted once committed
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Nexus Fidelity Card Rewards Catalog / NC Redemption Offers
+    match /fidelityRewards/{rewardId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && (isAdmin() || isSuperAdmin()) &&
+        request.resource.data.title is string &&
+        request.resource.data.title.size() > 0 &&
+        request.resource.data.title.size() <= 100 &&
+        ((('coinCost' in request.resource.data) && request.resource.data.coinCost is int && request.resource.data.coinCost > 0) ||
+         (('cost' in request.resource.data) && request.resource.data.cost is int && request.resource.data.cost > 0));
+      allow update: if isAuthenticated() && (isAdmin() || isSuperAdmin()) &&
+        request.resource.data.title is string &&
+        request.resource.data.title.size() > 0 &&
+        request.resource.data.title.size() <= 100 &&
+        ((('coinCost' in request.resource.data) && request.resource.data.coinCost is int && request.resource.data.coinCost > 0) ||
+         (('cost' in request.resource.data) && request.resource.data.cost is int && request.resource.data.cost > 0));
+      allow delete: if isAuthenticated() && (isAdmin() || isSuperAdmin());
+    }
+
+    // Official Manual Match Results recorded by authorized Staff/Admin
+    match /officialMatchResults/{resultId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && (isStaff() || isAdmin() || isSuperAdmin()) &&
+        request.resource.data.gameId is string &&
+        request.resource.data.idempotencyKey is string;
+      allow update: if isAuthenticated() && (isAdmin() || isSuperAdmin());
+      allow delete: if isAuthenticated() && isSuperAdmin();
+    }
+
+    // Nexus Reward Redemptions
+    match /rewardRedemptions/{redemptionId} {
+      allow get: if isAuthenticated() && (
+        resource == null ||
+        resource.data.playerUid == request.auth.uid ||
+        isAdmin() ||
+        isStaff()
+      );
+      allow list: if isAuthenticated() && (
+        resource.data.playerUid == request.auth.uid ||
+        isAdmin() ||
+        isStaff()
+      );
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (request.resource.data.playerUid == request.auth.uid && (request.resource.data.status == 'ACTIVE' || request.resource.data.status == 'APPROVED'))
+      );
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (isStaff() && request.resource.data.status in ['USED', 'ACTIVE']) ||
+        (resource.data.playerUid == request.auth.uid && request.resource.data.status == resource.data.status)
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Unique redemption code registry (Immutable constraint)
+    match /redemptionCodes/{code} {
+      allow get: if isAuthenticated();
+      allow list: if isAdmin() || isStaff();
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (request.resource.data.playerUid == request.auth.uid)
+      );
+      allow update: if isAdmin() || (
+        isStaff() &&
+        request.resource.data.status == 'USED' &&
+        resource.data.status == 'ACTIVE'
+      );
+      allow delete: if false;
+    }
+
+    // Tournament Registrations (Solo or Team)
+    match /tournamentRegistrations/{registrationId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Permanently Deleted Auth Accounts Tombstone Ledger
+    match /deletedAuthAccounts/{accountId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+  }
+}
+

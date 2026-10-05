@@ -1,0 +1,633 @@
+{
+  "entities": {
+    "Player": {
+      "title": "Player",
+      "description": "User profile with composite stats and roles",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "fullName": { "type": "string" },
+        "gamerTag": { "type": "string" },
+        "gamerTagLower": { "type": "string" },
+        "role": { "type": "string", "enum": ["PLAYER", "SUPER_ADMIN", "ADMIN", "STAFF", "VISITOR", "player", "admin"] },
+        "roleStatus": { "type": "string", "enum": ["ACTIVE", "REVOKED", "SUSPENDED"] },
+        "roleGrantedByName": { "type": "string" },
+        "roleGrantedAt": { "type": "number" },
+        "totalGames": { "type": "number" },
+        "totalWins": { "type": "number" },
+        "totalLosses": { "type": "number" },
+        "totalDraws": { "type": "number" },
+        "overallRating": { "type": "number" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["uid", "email", "fullName", "gamerTag", "role", "createdAt"]
+    },
+    "UsernameRegistry": {
+      "title": "UsernameRegistry",
+      "description": "Atomic unique index mapping normalized GamerTags to user UIDs",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "gamerTag": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["uid", "gamerTag", "createdAt"]
+    },
+    "Game": {
+      "title": "Game",
+      "description": "Competitive title configured in Nexus center",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string", "enum": ["PC", "PS5", "CHESS"] },
+        "description": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "name", "category", "active"]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "Head-to-head competitive match",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "playerAId": { "type": "string" },
+        "playerBId": { "type": "string" },
+        "playerAName": { "type": "string" },
+        "playerBName": { "type": "string" },
+        "playerAGamerTag": { "type": "string" },
+        "playerBGamerTag": { "type": "string" },
+        "gameId": { "type": "string" },
+        "gameName": { "type": "string" },
+        "gameCategory": { "type": "string" },
+        "station": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "LIVE", "AWAITING_CONFIRMATION", "CONFIRMED", "DISPUTED", "CANCELLED"] },
+        "seasonId": { "type": "string" },
+        "seasonNumber": { "type": "number" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "playerAId", "playerBId", "gameId", "station", "status", "createdAt"]
+    },
+    "PlayerGameRating": {
+      "title": "PlayerGameRating",
+      "description": "Per-game ELO rating for a specific player (All-time)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "playerId": { "type": "string" },
+        "gameId": { "type": "string" },
+        "gameName": { "type": "string" },
+        "gameCategory": { "type": "string" },
+        "gamerTag": { "type": "string" },
+        "rating": { "type": "number" },
+        "gamesPlayed": { "type": "number" },
+        "wins": { "type": "number" },
+        "losses": { "type": "number" },
+        "draws": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "playerId", "gameId", "rating", "gamesPlayed", "wins", "losses"]
+    },
+    "Season": {
+      "title": "Season",
+      "description": "4-month competitive season with dates, champions and status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "number": { "type": "number" },
+        "name": { "type": "string" },
+        "year": { "type": "number" },
+        "status": { "type": "string", "enum": ["UPCOMING", "ACTIVE", "COMPLETED"] },
+        "startDate": { "type": "number" },
+        "endDate": { "type": "number" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "number", "name", "year", "status", "startDate", "endDate"]
+    },
+    "SeasonPlayerGameRating": {
+      "title": "SeasonPlayerGameRating",
+      "description": "Seasonal MMR and statistics for a player in a specific game",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "seasonId": { "type": "string" },
+        "seasonNumber": { "type": "number" },
+        "playerId": { "type": "string" },
+        "gamerTag": { "type": "string" },
+        "gameId": { "type": "string" },
+        "gameName": { "type": "string" },
+        "gameCategory": { "type": "string" },
+        "startingRating": { "type": "number" },
+        "rating": { "type": "number" },
+        "isProvisional": { "type": "boolean" },
+        "placementGames": { "type": "number" },
+        "gamesPlayed": { "type": "number" },
+        "wins": { "type": "number" },
+        "losses": { "type": "number" },
+        "draws": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "seasonId", "playerId", "gameId", "rating", "gamesPlayed", "wins", "losses"]
+    },
+    "HallOfFameEntry": {
+      "title": "HallOfFameEntry",
+      "description": "Permanent record of past season champions by game",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "seasonId": { "type": "string" },
+        "seasonNumber": { "type": "number" },
+        "seasonName": { "type": "string" },
+        "year": { "type": "number" },
+        "startDate": { "type": "number" },
+        "endDate": { "type": "number" },
+        "gameId": { "type": "string" },
+        "gameName": { "type": "string" },
+        "gameCategory": { "type": "string" },
+        "playerId": { "type": "string" },
+        "gamerTag": { "type": "string" },
+        "finalMMR": { "type": "number" },
+        "wins": { "type": "number" },
+        "losses": { "type": "number" },
+        "draws": { "type": "number" },
+        "gamesPlayed": { "type": "number" },
+        "winRate": { "type": "number" },
+        "crownedAt": { "type": "number" }
+      },
+      "required": ["id", "seasonId", "gameId", "playerId", "gamerTag", "finalMMR"]
+    },
+    "SeasonPlayerOverall": {
+      "title": "SeasonPlayerOverall",
+      "description": "Overall seasonal player performance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "seasonId": { "type": "string" },
+        "playerId": { "type": "string" },
+        "gamerTag": { "type": "string" },
+        "fullName": { "type": "string" },
+        "overallRating": { "type": "number" },
+        "gamesPlayed": { "type": "number" },
+        "wins": { "type": "number" },
+        "losses": { "type": "number" },
+        "draws": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "seasonId", "playerId", "overallRating"]
+    },
+    "Team": {
+      "title": "Team",
+      "description": "5v5 competitive squad roster with team Elo",
+      "type": "object",
+      "properties": {
+        "teamId": { "type": "string" },
+        "teamName": { "type": "string" },
+        "teamNameLower": { "type": "string" },
+        "teamTag": { "type": "string" },
+        "teamTagLower": { "type": "string" },
+        "teamLogo": { "type": "string" },
+        "gameId": { "type": "string" },
+        "gameName": { "type": "string" },
+        "captainId": { "type": "string" },
+        "captainName": { "type": "string" },
+        "captainGamerTag": { "type": "string" },
+        "memberIds": { "type": "array", "items": { "type": "string" } },
+        "members": { "type": "array" },
+        "pastMembers": { "type": "array" },
+        "squadHistory": { "type": "array" },
+        "status": { "type": "string", "enum": ["active", "disbanded"] },
+        "teamRating": { "type": "number" },
+        "wins": { "type": "number" },
+        "losses": { "type": "number" },
+        "draws": { "type": "number" },
+        "matchesPlayed": { "type": "number" },
+        "winRate": { "type": "number" },
+        "currentWinStreak": { "type": "number" },
+        "bestWinStreak": { "type": "number" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["teamId", "teamName", "teamTag", "gameId", "captainId", "memberIds", "members", "status", "teamRating", "createdAt"]
+    },
+    "Tournament": {
+      "title": "Tournament",
+      "description": "Competitive tournament with brackets, participants and official champions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "gameId": { "type": "string" },
+        "gameName": { "type": "string" },
+        "gameCategory": { "type": "string" },
+        "type": { "type": "string", "enum": ["INDIVIDUAL", "TEAM"] },
+        "format": { "type": "string", "enum": ["SINGLE_ELIMINATION", "DOUBLE_ELIMINATION", "ROUND_ROBIN", "GROUP_STAGE_KNOCKOUT"] },
+        "status": { "type": "string", "enum": ["DRAFT", "REGISTRATION_OPEN", "REGISTRATION_CLOSED", "UPCOMING", "LIVE", "COMPLETED", "CANCELLED"] },
+        "maxParticipants": { "type": "number" },
+        "currentParticipantsCount": { "type": "number" },
+        "applyMMR": { "type": "boolean" },
+        "startDate": { "type": "number" },
+        "winnerAnnounced": { "type": "boolean" },
+        "createdById": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "name", "gameId", "type", "format", "status", "maxParticipants", "createdAt"]
+    },
+    "TeamTournamentRegistration": {
+      "title": "TeamTournamentRegistration",
+      "description": "5v5 team tournament entry with 5 player slots and admin verification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tournamentId": { "type": "string" },
+        "tournamentName": { "type": "string" },
+        "gameId": { "type": "string" },
+        "gameName": { "type": "string" },
+        "teamName": { "type": "string" },
+        "captainId": { "type": "string" },
+        "status": { "type": "string", "enum": ["DRAFT", "WAITING_FOR_PLAYERS", "READY_TO_SUBMIT", "PENDING_ADMIN_APPROVAL", "CONFIRMED", "REJECTED", "CANCELLED"] },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "tournamentId", "teamName", "captainId", "status", "createdAt"]
+    },
+    "TournamentEvent": {
+      "title": "TournamentEvent",
+      "description": "Official tournament qualification and progression event",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string" },
+        "tournamentId": { "type": "string" },
+        "matchId": { "type": "string" },
+        "round": { "type": "number" },
+        "roundName": { "type": "string" },
+        "winnerTeamId": { "type": "string" },
+        "winnerTeamName": { "type": "string" },
+        "loserTeamId": { "type": "string" },
+        "loserTeamName": { "type": "string" },
+        "scoreA": { "type": "number" },
+        "scoreB": { "type": "number" },
+        "qualificationTime": { "type": "number" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["eventId", "tournamentId", "matchId", "winnerTeamId", "loserTeamId", "createdAt"]
+    },
+    "AppNotification": {
+      "title": "AppNotification",
+      "description": "In-app user notifications for matches, invitations, teams, and tournament events",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "recipientId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "invitationId": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "read": { "type": "boolean" },
+        "notificationState": { "type": "string", "enum": ["UNREAD", "READ", "ACTIONED"] },
+        "status": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "userId", "type", "title", "message", "read", "createdAt"]
+    },
+    "RoleInvitation": {
+      "title": "RoleInvitation",
+      "description": "Cryptographically secure staff and admin role invitation with expiration and audit links",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invitationId": { "type": "string" },
+        "recipientEmail": { "type": "string" },
+        "recipientUid": { "type": "string" },
+        "recipientGamerTag": { "type": "string" },
+        "recipientFullName": { "type": "string" },
+        "invitedRole": { "type": "string", "enum": ["ADMIN", "STAFF"] },
+        "invitedByUid": { "type": "string" },
+        "invitedByName": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "expiresAt": { "type": "number" },
+        "status": { "type": "string", "enum": ["PENDING", "ACCEPTED", "DECLINED", "EXPIRED", "REVOKED"] },
+        "token": { "type": "string" }
+      },
+      "required": ["id", "invitationId", "recipientEmail", "invitedRole", "invitedByUid", "createdAt", "expiresAt", "status"]
+    },
+    "RoleAuditLog": {
+      "title": "RoleAuditLog",
+      "description": "Append-only cryptographic security audit record for role assignment, invitation, and revocation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "auditId": { "type": "string" },
+        "targetUid": { "type": "string" },
+        "targetEmail": { "type": "string" },
+        "targetGamerTag": { "type": "string" },
+        "targetDisplayName": { "type": "string" },
+        "previousRole": { "type": "string" },
+        "newRole": { "type": "string" },
+        "action": { "type": "string" },
+        "performedByUid": { "type": "string" },
+        "performedByName": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "reason": { "type": "string" }
+      },
+      "required": ["id", "auditId", "targetEmail", "newRole", "action", "performedByUid", "timestamp"]
+    },
+    "SystemConfig": {
+      "title": "SystemConfig",
+      "description": "System-wide administrative security configurations and bootstrap locks",
+      "type": "object",
+      "properties": {
+        "bootstrapCompleted": { "type": "boolean" },
+        "firstSuperAdminUid": { "type": "string" },
+        "firstSuperAdminGamerTag": { "type": "string" },
+        "completedAt": { "type": "number" }
+      }
+    },
+    "CoinTransaction": {
+      "title": "CoinTransaction",
+      "description": "Immutable ledger record of Nexus Coin reward, draw split reward, redemption, or adjustment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "playerUid": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["MATCH_WIN", "MATCH_DRAW_REWARD", "REDEMPTION", "ADMIN_ADJUSTMENT", "TOURNAMENT_REWARD"] },
+        "reason": { "type": "string" },
+        "matchId": { "type": "string" },
+        "result": { "type": "string", "enum": ["WIN", "DRAW", "LOSS"] },
+        "balanceBefore": { "type": "number" },
+        "balanceAfter": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "playerUid", "amount", "type", "reason", "createdAt"]
+    },
+    "PostSlotLock": {
+      "title": "PostSlotLock",
+      "description": "Deterministic atomic slot lock for concurrency and overlap collision prevention",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "postId": { "type": "string" },
+        "slotStart": { "type": "number" },
+        "slotEnd": { "type": "number" },
+        "reservationId": { "type": "string" },
+        "userId": { "type": "string" },
+        "gamerTag": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "PENDING_ADMIN_APPROVAL", "CONFIRMED", "CHECKED_IN", "CANCELLED", "REJECTED", "EXPIRED"] },
+        "createdAt": { "type": "number" },
+        "expiresAt": { "type": "number" }
+      },
+      "required": ["id", "postId", "slotStart", "slotEnd", "reservationId", "status", "createdAt"]
+    },
+    "FidelityReward": {
+      "title": "FidelityReward",
+      "description": "NC redemption offers and rewards catalog entries",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "coinCost": { "type": "number" },
+        "category": { "type": "string", "enum": ["STATION_TIME", "FOOD_BEVERAGE", "TOURNAMENT", "MERCH", "PASS", "SPECIAL"] },
+        "active": { "type": "boolean" },
+        "availableQuantity": { "type": "number" },
+        "claimedCount": { "type": "number" },
+        "terms": { "type": "string" },
+        "displayOrder": { "type": "number" },
+        "hasOffer": { "type": "boolean" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "title", "description", "coinCost", "category", "active", "createdAt", "updatedAt"]
+    },
+    "RewardRedemption": {
+      "title": "RewardRedemption",
+      "description": "Nexus coin reward redemptions and active vouchers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "redemptionId": { "type": "string" },
+        "code": { "type": "string" },
+        "playerUid": { "type": "string" },
+        "playerGamerTag": { "type": "string" },
+        "rewardId": { "type": "string" },
+        "rewardTitle": { "type": "string" },
+        "coinCost": { "type": "number" },
+        "status": { "type": "string", "enum": ["ACTIVE", "USED", "CANCELLED", "EXPIRED", "APPROVED", "PENDING"] },
+        "createdAt": { "type": "number" },
+        "expiresAt": { "type": "number" }
+      },
+      "required": ["id", "code", "playerUid", "rewardId", "rewardTitle", "coinCost", "status", "createdAt"]
+    },
+    "OfficialMatchResult": {
+      "title": "OfficialMatchResult",
+      "type": "object",
+      "description": "Manual official match results verified and entered by authorized Nexus employees",
+      "properties": {
+        "id": { "type": "string" },
+        "resultId": { "type": "string" },
+        "gameId": { "type": "string" },
+        "gameName": { "type": "string" },
+        "matchFormat": { "type": "string", "enum": ["1v1", "5v5"] },
+        "outcome": { "type": "string" },
+        "rewardPerWinner": { "type": "number" },
+        "totalRewardAwarded": { "type": "number" },
+        "rewardBreakdown": { "type": "string" },
+        "isDraw": { "type": "boolean" },
+        "recordedBy": { "type": "string" },
+        "recordedByName": { "type": "string" },
+        "recordedByRole": { "type": "string", "enum": ["STAFF", "ADMIN", "SUPER_ADMIN"] },
+        "createdAt": { "type": "number" },
+        "idempotencyKey": { "type": "string" },
+        "status": { "type": "string", "enum": ["OFFICIAL", "CORRECTED", "CANCELLED"] }
+      },
+      "required": ["id", "resultId", "gameId", "gameName", "matchFormat", "outcome", "rewardPerWinner", "totalRewardAwarded", "rewardBreakdown", "recordedBy", "recordedByName", "recordedByRole", "createdAt", "idempotencyKey", "status"]
+    },
+    "MatchHistory": {
+      "title": "MatchHistory",
+      "description": "Permanent immutable Match History records for validated games at Nexus Gaming Center",
+      "type": "object",
+      "properties": {
+        "matchId": { "type": "string" },
+        "game": { "type": "string" },
+        "gameMode": { "type": "string" },
+        "player1Id": { "type": "string" },
+        "player1GamerTag": { "type": "string" },
+        "player2Id": { "type": "string" },
+        "player2GamerTag": { "type": "string" },
+        "winnerId": { "type": "string" },
+        "winnerGamerTag": { "type": "string" },
+        "loserId": { "type": "string" },
+        "loserGamerTag": { "type": "string" },
+        "player1Wins": { "type": "number" },
+        "player1Losses": { "type": "number" },
+        "player2Wins": { "type": "number" },
+        "player2Losses": { "type": "number" },
+        "winnerNCReward": { "type": "number" },
+        "loserNCReward": { "type": "number" },
+        "player1NCReward": { "type": "number" },
+        "player2NCReward": { "type": "number" },
+        "validatedBy": { "type": "string" },
+        "validatedByRole": { "type": "string" },
+        "validatedAt": { "type": "number" },
+        "createdAt": { "type": "number" },
+        "status": { "type": "string", "enum": ["VALIDATED"] }
+      },
+      "required": [
+        "matchId",
+        "game",
+        "gameMode",
+        "player1Id",
+        "player1GamerTag",
+        "player2Id",
+        "player2GamerTag",
+        "winnerId",
+        "winnerGamerTag",
+        "loserId",
+        "loserGamerTag",
+        "player1Wins",
+        "player1Losses",
+        "player2Wins",
+        "player2Losses",
+        "winnerNCReward",
+        "loserNCReward",
+        "validatedBy",
+        "validatedByRole",
+        "validatedAt",
+        "createdAt",
+        "status"
+      ]
+    },
+    "HallOfFameAnnouncement": {
+      "title": "HallOfFameAnnouncement",
+      "description": "Official Hall of Fame announcements for seasonal champions across 1v1 and 5v5 ranked games",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "seasonId": { "type": "string" },
+        "seasonNumber": { "type": "number" },
+        "seasonName": { "type": "string" },
+        "gameId": { "type": "string" },
+        "gameName": { "type": "string" },
+        "gameIcon": { "type": "string" },
+        "matchFormat": { "type": "string", "enum": ["1v1", "5v5"] },
+        "winnerType": { "type": "string", "enum": ["PLAYER", "TEAM"] },
+        "winnerId": { "type": "string" },
+        "winnerName": { "type": "string" },
+        "winnerTag": { "type": "string" },
+        "finalMMR": { "type": "number" },
+        "title": { "type": "string" },
+        "headline": { "type": "string" },
+        "subheadline": { "type": "string" },
+        "badgeText": { "type": "string" },
+        "congratulationsText": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "seasonId", "seasonNumber", "seasonName", "gameId", "gameName", "winnerId", "winnerName", "finalMMR", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/hallOfFameAnnouncements/{announcementId}": {
+      "schema": "HallOfFameAnnouncement",
+      "description": "Permanent official Hall of Fame announcements for 1v1 and 5v5 season champions"
+    },
+    "/matchHistory/{matchId}": {
+      "schema": "MatchHistory",
+      "description": "Permanent immutable validated match records for all Nexus Gaming Center games"
+    },
+    "/officialMatchResults/{resultId}": {
+      "schema": "OfficialMatchResult",
+      "description": "Official manual match results recorded by authorized staff and admins"
+    },
+    "/fidelityRewards/{rewardId}": {
+      "schema": "FidelityReward",
+      "description": "Nexus NC redemption offers and loyalty catalogue"
+    },
+    "/rewardRedemptions/{redemptionId}": {
+      "schema": "RewardRedemption",
+      "description": "Nexus coin redemption passes and vouchers"
+    },
+    "/postSlotLocks/{lockId}": {
+      "schema": "PostSlotLock",
+      "description": "Deterministic atomic slot locks preventing double booking and overlapping reservations"
+    },
+    "/coinTransactions/{txId}": {
+      "schema": "CoinTransaction",
+      "description": "Immutable audit ledger of Nexus Coin rewards, draw splits, and wallet balances"
+    },
+    "/systemConfig/{configId}": {
+      "schema": "SystemConfig",
+      "description": "System administrative configuration and bootstrap locks"
+    },
+    "/roleInvitations/{invitationId}": {
+      "schema": "RoleInvitation",
+      "description": "Role invitations for staff and admin governance"
+    },
+    "/roleAuditLogs/{auditId}": {
+      "schema": "RoleAuditLog",
+      "description": "Append-only immutable role governance audit logs"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "AppNotification",
+      "description": "In-app user notifications for invitations, matches, and tournament events"
+    },
+    "/players/{playerId}": {
+      "schema": "Player",
+      "description": "Registered competitive players"
+    },
+    "/teams/{teamId}": {
+      "schema": "Team",
+      "description": "5v5 competitive squads and rosters"
+    },
+    "/games/{gameId}": {
+      "schema": "Game",
+      "description": "Supported gaming catalog"
+    },
+    "/matches/{matchId}": {
+      "schema": "Match",
+      "description": "Competitive matches"
+    },
+    "/playerGameRatings/{ratingId}": {
+      "schema": "PlayerGameRating",
+      "description": "Per-game all-time ELO rating records"
+    },
+    "/seasons/{seasonId}": {
+      "schema": "Season",
+      "description": "Competitive seasons metadata and champions"
+    },
+    "/seasonPlayerGameRatings/{ratingId}": {
+      "schema": "SeasonPlayerGameRating",
+      "description": "Per-season per-game player MMR standings"
+    },
+    "/seasonPlayerOverall/{statId}": {
+      "schema": "SeasonPlayerOverall",
+      "description": "Per-season player composite stats"
+    },
+    "/hallOfFame/{entryId}": {
+      "schema": "HallOfFameEntry",
+      "description": "Historical seasonal champions"
+    },
+    "/tournaments/{tournamentId}": {
+      "schema": "Tournament",
+      "description": "Competitive tournaments and brackets"
+    },
+    "/tournamentTeamRegistrations/{registrationId}": {
+      "schema": "TeamTournamentRegistration",
+      "description": "5v5 team tournament registration requests and rosters"
+    },
+    "/tournamentEvents/{eventId}": {
+      "schema": "TournamentEvent",
+      "description": "Official tournament qualification and progression events"
+    },
+    "/usernames/{tag}": {
+      "schema": "UsernameRegistry",
+      "description": "Atomic unique GamerTag registry for race-condition prevention"
+    }
+  }
+}
