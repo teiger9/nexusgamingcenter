@@ -1,0 +1,6 @@
+{
+  "name": "Nexus Gaming Center",
+  "description": "Competitive ranking, matchmaking, ELO tracking, dispute resolution, equipment reservations, tournament brackets & championships, and leaderboard system for Nexus Gaming Center.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
